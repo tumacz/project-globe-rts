@@ -3,7 +3,7 @@ using UnityEngine.InputSystem;
 using System.Collections;
 
 [RequireComponent(typeof(PlayerInput))]
-public class CameraOrbitController : MonoBehaviour
+public class CameraOrbitController : MonoBehaviour //set far clip 0.1f
 {
     [Header("Target")]
     [SerializeField] private DynamicTerrainManager terrainManager;
@@ -150,7 +150,7 @@ public class CameraOrbitController : MonoBehaviour
         distance = Mathf.SmoothDamp(distance, targetDistance, ref zoomVelocity, zoomSmoothTime);
 
         // Orbit speed
-        float t = Mathf.InverseLerp(minDistance, maxDistance, distance); // Normalize distance to 0-1 range
+        float t = Mathf.InverseLerp(minDistance, maxDistance, distance);
         float orbitSpeed = Mathf.Lerp(orbitSpeedMin, orbitSpeedMax, t);
 
         // Input smoothing
@@ -175,17 +175,11 @@ public class CameraOrbitController : MonoBehaviour
     {
         if (mainCamera == null) return;
 
-        // Map the current distance within its allowed range (minDistance to maxDistance)
-        // to a normalized 0-1 value.
-        // 0 when at minAllowedDistance, 1 when at maxAllowedDistance.
         float normalizedDistance = Mathf.InverseLerp(minAllowedDistance, maxAllowedDistance, currentDistance);
 
-        // Interpolate the far clip plane value between farClipPlaneMin and farClipPlaneMax
-        // based on the normalized distance.
         float targetFarClip = Mathf.Lerp(farClipPlaneMin, farClipPlaneMax, normalizedDistance);
 
-        // Ensure farClipPlane is never less than nearClipPlane + a small buffer
-        mainCamera.farClipPlane = Mathf.Max(mainCamera.nearClipPlane + 0.01f, targetFarClip); // Changed buffer to 0.01f
+        mainCamera.farClipPlane = Mathf.Max(mainCamera.nearClipPlane + 0.01f, targetFarClip);
     }
 
     private static Vector3 GetOrbitOffset(float latitude, float longitude)
