@@ -1,5 +1,4 @@
 using UnityEngine;
-using System.Collections.Generic;
 
 public class DynamicMeshDeformer : MonoBehaviour
 {
@@ -18,6 +17,10 @@ public class DynamicMeshDeformer : MonoBehaviour
     [Header("Deformation Mode")]
     [Tooltip("If true, deformation is handled by GPU via shader. If false, by CPU in C#.")]
     [SerializeField] private bool _useGpuDeformation = true;
+
+    [Header("GPU Deformation Settings")]
+    [Tooltip("Assign the Compute Shader used for mesh deformation when GPU mode is active.")]
+    [SerializeField] private ComputeShader _deformationComputeShader;
 
     private SphereFace[] _sphereFaces;
     private MeshFilter[] _faceMeshFilters;
@@ -71,6 +74,22 @@ public class DynamicMeshDeformer : MonoBehaviour
             return;
         }
 
+        TileDeformer_GPU masterGpuDeformerInstance = null;
+        if (_useGpuDeformation)
+        {
+            if (_deformationComputeShader == null)
+            {
+                Debug.LogError("GPU Deformation is enabled but Compute Shader is not assigned to DynamicMeshDeformer!");
+                return;
+            }
+            masterGpuDeformerInstance = GetComponent<TileDeformer_GPU>();
+            if (masterGpuDeformerInstance == null)
+            {
+                masterGpuDeformerInstance = gameObject.AddComponent<TileDeformer_GPU>();
+            }
+            masterGpuDeformerInstance.computeShader = _deformationComputeShader;
+        }
+
         for (int i = 0; i < _faceDirections.Length; i++)
         {
             GameObject faceGO = new GameObject($"Face_{_faceDirections[i].ToString().Replace(" ", "")}");
@@ -86,20 +105,29 @@ public class DynamicMeshDeformer : MonoBehaviour
 
             if (_useGpuDeformation)
             {
-                GenerateFlatBaseMeshForFace(mf.sharedMesh, _tileMeshResolution * _tilesPerSide, _faceDirections[i]);
+                _sphereFaces[i].InitializeTiles(
+                    faceGO.transform,
+                    _deformingMaterial,
+                    _heightMap,
+                    _heightScale,
+                    _sphereRadius,
+                    _uniformGlobalScale,
+                    masterGpuDeformerInstance
+                );
+                _sphereFaces[i].ConstructFaceMeshes(_useGpuDeformation);
             }
-            else
+            else 
             {
                 _sphereFaces[i].InitializeTiles(
                     faceGO.transform,
                     _deformingMaterial,
-                    _heightMap,     
-                    _heightScale,       
-                    _sphereRadius,      
-                    _uniformGlobalScale 
+                    _heightMap,
+                    _heightScale,
+                    _sphereRadius,
+                    _uniformGlobalScale
                 );
 
-                _sphereFaces[i].ConstructFaceMeshes();
+                _sphereFaces[i].ConstructFaceMeshes(_useGpuDeformation);
                 mf.sharedMesh = null;
                 mr.enabled = false;
             }
@@ -114,53 +142,60 @@ public class DynamicMeshDeformer : MonoBehaviour
             if (!Application.isPlaying) GameObject.DestroyImmediate(child);
             else GameObject.Destroy(child);
         }
+        TileDeformer_GPU existingGpuDeformer = GetComponent<TileDeformer_GPU>();
+        if (existingGpuDeformer != null)
+        {
+            if (!Application.isPlaying) DestroyImmediate(existingGpuDeformer);
+            else Destroy(existingGpuDeformer);
+        }
     }
 
-    private void GenerateFlatBaseMeshForFace(Mesh mesh, int resolution, Vector3 localUp)
-    {
-        mesh.Clear();
-        mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
+    //private void GenerateFlatBaseMeshForFace(Mesh mesh, int resolution, Vector3 localUp)
+    //{
+    //    mesh.Clear();
+    //    mesh.indexFormat = UnityEngine.Rendering.IndexFormat.UInt32;
 
-        Vector3[] vertices = new Vector3[resolution * resolution];
-        Vector2[] uvs = new Vector2[vertices.Length];
-        int[] triangles = new int[(resolution - 1) * (resolution - 1) * 6];
-        int triIndex = 0;
+    //    Vector3[] vertices = new Vector3[resolution * resolution];
+    //    Vector2[] uvs = new Vector2[vertices.Length];
+    //    int[] triangles = new int[(resolution - 1) * (resolution - 1) * 6];
+    //    int triIndex = 0;
 
-        Vector3 axisA = new Vector3(localUp.y, localUp.z, localUp.x);
-        Vector3 axisB = Vector3.Cross(localUp, axisA);
+    //    Vector3 axisA = new Vector3(localUp.y, localUp.z, localUp.x);
+    //    Vector3 axisB = Vector3.Cross(localUp, axisA);
 
-        for (int y = 0; y < resolution; y++)
-        {
-            for (int x = 0; x < resolution; x++)
-            {
-                int i = x + y * resolution;
-                Vector2 percent = new Vector2(x, y) / (resolution - 1);
+    //    for (int y = 0; y < resolution; y++)
+    //    {
+    //        for (int x = 0; x < resolution; x++)
+    //        {
+    //            int i = x + y * resolution;
+    //            Vector2 percent = new Vector2(x, y) / (resolution - 1);
 
-                vertices[i] = (percent.x - 0.5f) * 2f * axisA + (percent.y - 0.5f) * 2f * axisB;
-                uvs[i] = percent;
-            }
-        }
+    //            vertices[i] = (percent.x - 0.5f) * 2f * axisA + (percent.y - 0.5f) * 2f * axisB;
+    //            uvs[i] = percent;
+    //        }
+    //    }
 
-        for (int y = 0; y < resolution - 1; y++)
-        {
-            for (int x = 0; x < resolution - 1; x++)
-            {
-                int i = x + y * resolution;
-                triangles[triIndex++] = i;
-                triangles[triIndex++] = i + resolution + 1;
-                triangles[triIndex++] = i + resolution;
+    //    for (int y = 0; y < resolution - 1; y++)
+    //    {
+    //        for (int x = 0; x < resolution - 1; x++)
+    //        {
+    //            int i = x + y * resolution;
+    //            triangles[triIndex++] = i;
+    //            triangles[triIndex++] = i + resolution + 1;
+    //            triangles[triIndex++] = i + resolution;
 
-                triangles[triIndex++] = i;
-                triangles[triIndex++] = i + 1;
-                triangles[triIndex++] = i + resolution + 1;
-            }
-        }
+    //            triangles[triIndex++] = i;
+    //            triangles[triIndex++] = i + 1;
+    //            triangles[triIndex++] = i + resolution + 1;
+    //        }
+    //    }
 
-        mesh.vertices = vertices;
-        mesh.triangles = triangles;
-        mesh.uv = uvs;
-        mesh.RecalculateNormals();
-    }
+    //    mesh.vertices = vertices;
+    //    mesh.triangles = triangles;
+    //    mesh.uv = uvs;
+    //    mesh.RecalculateNormals();
+    //}
+
 
     private void UpdateGpuDeformation(Vector3 currentGlobalMapPosition)
     {
@@ -169,14 +204,15 @@ public class DynamicMeshDeformer : MonoBehaviour
 
         foreach (MeshFilter mf in _faceMeshFilters)
         {
-            if (mf != null && mf.gameObject.activeSelf)
+            if (mf != null)
             {
-                mf.GetComponent<MeshRenderer>().enabled = true;
+                mf.GetComponent<MeshRenderer>().enabled = false;
             }
         }
+
         foreach (SphereFace face in _sphereFaces)
         {
-            face?.SetTileVisibility(false);
+            face?.SetTileVisibility(true);
         }
     }
 
@@ -184,7 +220,7 @@ public class DynamicMeshDeformer : MonoBehaviour
     {
         foreach (MeshFilter mf in _faceMeshFilters)
         {
-            if (mf != null && mf.gameObject.activeSelf)
+            if (mf != null)
             {
                 mf.GetComponent<MeshRenderer>().enabled = false;
             }

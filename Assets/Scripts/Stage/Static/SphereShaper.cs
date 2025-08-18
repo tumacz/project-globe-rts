@@ -8,10 +8,20 @@ using UnityEditor;
 public class SphereShaper : MonoBehaviour
 {
     [Header("Global Sphere Settings")]
-    [Range(1, 32)] public int tilesPerSide = 2;
+    [Range(1, 8)] public int tilesPerSide = 2;
     [Range(2, 256)] public int tileMeshResolution = 8;
     [SerializeField] public Material sphereMaterial;
     [SerializeField, Min(0.1f)] public float SphereRadius = 1f;
+
+    [Header("Editor Deformation Settings (Optional)")]
+    [SerializeField] private Texture2D editorHeightMap;
+    [SerializeField] private float editorHeightScale = 0f;
+    [SerializeField] private float editorUniformGlobalScale = 1f;
+
+    [Header("Deformation Method")]
+    [Tooltip("If true, GPU Compute Shader will be used for mesh deformation in Editor. Requires a Compute Shader assigned.")]
+    public bool useGpuDeformationInEditor = false;
+    [SerializeField] private ComputeShader deformationComputeShader;
 
     private SphereFace[] editorSphereFaces;
     private MeshFilter[] editorMeshFilters;
@@ -39,6 +49,19 @@ public class SphereShaper : MonoBehaviour
             editorMeshFilters = new MeshFilter[6];
 
         editorSphereFaces = new SphereFace[6];
+
+        TileDeformer_GPU masterEditorDeformer = null;
+        if (useGpuDeformationInEditor && deformationComputeShader != null)
+        {
+            masterEditorDeformer = GetComponent<TileDeformer_GPU>();
+            if (masterEditorDeformer == null) masterEditorDeformer = gameObject.AddComponent<TileDeformer_GPU>();
+            masterEditorDeformer.computeShader = deformationComputeShader;
+        }
+        else
+        {
+            TileDeformer_GPU existing = GetComponent<TileDeformer_GPU>();
+            if (existing != null) DestroyImmediate(existing);
+        }
 
         for (int i = 0; i < 6; i++)
         {
@@ -74,10 +97,11 @@ public class SphereShaper : MonoBehaviour
             editorSphereFaces[i].InitializeTiles(
                 editorMeshFilters[i].transform,
                 sphereMaterial,
-                null, 
-                0f,  
+                editorHeightMap,
+                editorHeightScale,
                 SphereRadius,
-                1f 
+                editorUniformGlobalScale,
+                masterEditorDeformer
             );
         }
         SetEditorMeshVisibility(true);
@@ -88,7 +112,7 @@ public class SphereShaper : MonoBehaviour
         if (editorSphereFaces == null) return;
         foreach (SphereFace face in editorSphereFaces)
         {
-            face?.ConstructFaceMeshes();
+            face?.ConstructFaceMeshes(useGpuDeformationInEditor);
         }
     }
 
@@ -113,6 +137,12 @@ public class SphereShaper : MonoBehaviour
         }
         editorMeshFilters = null;
         editorSphereFaces = null;
+
+        if (!Application.isPlaying)
+        {
+            TileDeformer_GPU existing = GetComponent<TileDeformer_GPU>();
+            if (existing != null) DestroyImmediate(existing);
+        }
     }
 
     private void SetEditorMeshVisibility(bool visible)
@@ -149,6 +179,8 @@ public class SphereShaper : MonoBehaviour
                     Object.Destroy(child);
                 }
             }
+            TileDeformer_GPU existing = GetComponent<TileDeformer_GPU>();
+            if (existing != null) Object.Destroy(existing);
 #endif
             this.enabled = false;
         }

@@ -3,6 +3,7 @@ using System.Collections.Generic;
 
 public class SphereFace
 {
+    public Mesh mesh;
     private Transform faceParentTransform;
     private SphereTile[] tiles;
     private int tilesPerSide;
@@ -12,10 +13,8 @@ public class SphereFace
     private Vector3 axisB;
 
     private Material tileMaterial;
-    private Texture2D heightMap;
-    private float heightScale;
-    private float sphereRadius;
-    private float uniformGlobalScale;
+
+    private TileDeformer_GPU sharedGpuDeformer;
 
     public SphereFace(int tilesPerSide, int tileMeshResolution, Vector3 localup)
     {
@@ -30,14 +29,12 @@ public class SphereFace
     }
 
     public void InitializeTiles(Transform parentTransform, Material tileMaterial,
-                                Texture2D heightMap, float heightScale, float sphereRadius, float uniformGlobalScale)
+                                Texture2D globalHeightMapForFace, float globalHeightScaleForFace, float globalSphereRadiusForFace, float globalUniformGlobalScaleForFace,
+                                TileDeformer_GPU gpuDeformerInstance = null)
     {
         this.faceParentTransform = parentTransform;
         this.tileMaterial = tileMaterial;
-        this.heightMap = heightMap;
-        this.heightScale = heightScale;
-        this.sphereRadius = sphereRadius;
-        this.uniformGlobalScale = uniformGlobalScale;
+        this.sharedGpuDeformer = gpuDeformerInstance;
 
         string faceID = CleanVectorName(localup);
 
@@ -100,6 +97,20 @@ public class SphereFace
                 if (meshFilter.sharedMesh == null)
                     meshFilter.sharedMesh = new Mesh();
 
+                TileDeformer_GPU tileDeformer = tileGO.GetComponent<TileDeformer_GPU>();
+                if (tileDeformer == null)
+                {
+                    tileDeformer = tileGO.AddComponent<TileDeformer_GPU>();
+                    if (sharedGpuDeformer != null)
+                    {
+                        tileDeformer.computeShader = sharedGpuDeformer.computeShader;
+                    }
+                    else
+                    {
+                        Debug.LogWarning($"TileDeformer_GPU on '{tileName}' could not be assigned a Compute Shader because the master deformer was null.");
+                    }
+                }
+
                 tiles[index] = new SphereTile(
                     meshFilter.sharedMesh,
                     meshRenderer,
@@ -109,20 +120,21 @@ public class SphereFace
                     axisA,
                     axisB,
                     x, y, tilesPerSide,
-                    heightMap,
-                    heightScale,
-                    sphereRadius,
-                    uniformGlobalScale
+                    globalHeightMapForFace,
+                    globalHeightScaleForFace,
+                    globalSphereRadiusForFace,
+                    globalUniformGlobalScaleForFace,
+                    tileDeformer
                 );
             }
         }
     }
 
-    public void ConstructFaceMeshes()
+    public void ConstructFaceMeshes(bool useGpuDeformation)
     {
         foreach (SphereTile tile in tiles)
         {
-            tile?.ConstructTileMesh();
+            tile?.ConstructTileMesh(useGpuDeformation);
         }
     }
 

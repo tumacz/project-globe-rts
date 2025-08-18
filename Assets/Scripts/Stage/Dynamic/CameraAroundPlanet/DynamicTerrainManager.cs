@@ -19,9 +19,13 @@ public class DynamicTerrainManager : MonoBehaviour
 
     [Header("Data Textures (from DynamicMeshDeformer or direct)")]
     [SerializeField] private Texture2D heightMap;
-    [SerializeField] private float heightScale = 10f;
+    [SerializeField] private float heightScale = 1f;
     [SerializeField] private float uniformGlobalScale = 1f;
 
+    [Header("Deformation Method (Play Mode)")]
+    [Tooltip("If true, GPU Compute Shader will be used for mesh deformation in Play Mode. Requires a Compute Shader assigned.")]
+    public bool useGpuDeformationInPlayMode = true;
+    [SerializeField] private ComputeShader playModeComputeShader;
 
     public float SphereRadius
     {
@@ -58,6 +62,12 @@ public class DynamicTerrainManager : MonoBehaviour
             return;
         }
 
+        if (useGpuDeformationInPlayMode && playModeComputeShader == null)
+        {
+            Debug.LogError("DynamicTerrainManager: useGpuDeformationInPlayMode is true but Play Mode Compute Shader is not assigned!");
+            enabled = false;
+            return;
+        }
     }
 
     private void Update()
@@ -92,12 +102,13 @@ public class DynamicTerrainManager : MonoBehaviour
                     );
 
                     Vector3 pointOnUnitCube = localUp +
-                        (axisA * (centerPercent.x - 0.5f) * 2f) +
-                        (axisB * (centerPercent.y - 0.5f) * 2f);
+                                              (axisA * (centerPercent.x - 0.5f) * 2f) +
+                                              (axisB * (centerPercent.y - 0.5f) * 2f);
 
                     Vector3 chunkWorldCenter = pointOnUnitCube.normalized * SphereRadius;
 
-                    float chunkApproxRadius = SphereRadius * (tileSize * 1.5f);
+                    float maxPossibleElevation = (this.heightMap != null ? (this.heightScale * this.uniformGlobalScale) : 0f) / 2f;
+                    float chunkApproxRadius = SphereRadius * (tileSize * 1.5f) + maxPossibleElevation;
                     Bounds chunkBounds = new Bounds(chunkWorldCenter, Vector3.one * chunkApproxRadius * 2);
 
                     bool isVisible = GeometryUtility.TestPlanesAABB(frustumPlanes, chunkBounds);
@@ -112,7 +123,12 @@ public class DynamicTerrainManager : MonoBehaviour
                                 baseSphereShaper.sphereMaterial,
                                 playModeChunkMeshResolution,
                                 localUp, axisA, axisB, x, y, virtualTilesPerSide,
-                                heightMap, heightScale, SphereRadius, uniformGlobalScale
+                                this.heightMap,
+                                this.heightScale,
+                                this.SphereRadius,
+                                this.uniformGlobalScale,
+                                useGpuDeformationInPlayMode,
+                                playModeComputeShader
                             );
                             activeChunks.Add(chunkID, chunkGO);
                         }
@@ -128,6 +144,11 @@ public class DynamicTerrainManager : MonoBehaviour
             {
                 if (chunkGO != null)
                 {
+                    TileDeformer_GPU deformer = chunkGO.GetComponent<TileDeformer_GPU>();
+                    if (deformer != null)
+                    {
+                        Object.Destroy(deformer);
+                    }
                     Object.Destroy(chunkGO);
                 }
                 activeChunks.Remove(id);
@@ -137,7 +158,8 @@ public class DynamicTerrainManager : MonoBehaviour
 
     private GameObject CreateAndGenerateChunk(string id, Transform parentTransform, Material material, int resolution,
                                               Vector3 localUp, Vector3 axisA, Vector3 axisB, int tileGridX, int tileGridY, int tilesPerSide,
-                                              Texture2D heightMap, float heightScale, float sphereRadius, float uniformGlobalScale)
+                                              Texture2D globalHeightMapForTile, float globalHeightScaleForTile, float sphereRadiusForTile, float uniformGlobalScaleForTile,
+                                              bool useGpu, ComputeShader cs)
     {
         GameObject chunkGO = new GameObject(id);
         chunkGO.transform.SetParent(parentTransform);
@@ -150,6 +172,13 @@ public class DynamicTerrainManager : MonoBehaviour
         mesh.MarkDynamic();
         meshFilter.sharedMesh = mesh;
 
+        TileDeformer_GPU deformer = null;
+        if (useGpu)
+        {
+            deformer = chunkGO.AddComponent<TileDeformer_GPU>();
+            deformer.computeShader = cs;
+        }
+
         SphereTile tempTile = new SphereTile(
             mesh,
             meshRenderer,
@@ -157,9 +186,10 @@ public class DynamicTerrainManager : MonoBehaviour
             resolution,
             localUp, axisA, axisB,
             tileGridX, tileGridY, tilesPerSide,
-            heightMap, heightScale, sphereRadius, uniformGlobalScale
+            globalHeightMapForTile, globalHeightScaleForTile, sphereRadiusForTile, uniformGlobalScaleForTile,
+            deformer
         );
-        tempTile.ConstructTileMesh();
+        tempTile.ConstructTileMesh(useGpu);
 
         return chunkGO;
     }
@@ -172,6 +202,11 @@ public class DynamicTerrainManager : MonoBehaviour
         {
             if (entry.Value != null)
             {
+                TileDeformer_GPU deformer = entry.Value.GetComponent<TileDeformer_GPU>();
+                if (deformer != null)
+                {
+                    Object.Destroy(deformer);
+                }
                 Object.Destroy(entry.Value);
             }
         }

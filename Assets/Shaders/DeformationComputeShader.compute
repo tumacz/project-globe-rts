@@ -1,0 +1,67 @@
+#pragma kernel CSMain
+
+// Struktura reprezentujaca wierzcholek. Bedziemy uzywac jej do komunikacji
+// miedzy C# a GPU.
+struct VertexData
+{
+    float3 position;
+};
+
+// Globalne bufory do przechowywania danych wierzcholkow.
+// `originalVertices` to bufor wejsciowy, a `deformedVertices` to bufor wyjsciowy.
+// RWStructuredBuffer oznacza, ze bufor jest do odczytu i zapisu.
+StructuredBuffer<VertexData> originalVertices;
+RWStructuredBuffer<VertexData> deformedVertices;
+
+// Parametry, ktore przekazemy z C#.
+Texture2D<float> heightMap;
+SamplerState samplerHeightMap;
+float heightScale;
+float sphereRadius;
+float globalScale;
+uint vertexCount;
+uint heightMapWidth;
+uint heightMapHeight;
+
+
+// Jadro shadera, ktore zostanie wywolane dla kazdego watku.
+// Numthreads okresla wielkosc grupy roboczej w wymiarach (x, y, z).
+// Dziala to podobnie jak petla w C#, ale jest zrownoleglone.
+[numthreads(64, 1, 1)]
+void CSMain(uint3 id : SV_DispatchThreadID)
+{
+    // Upewnij sie, ze nie wychodzimy poza zakres bufora wierzcholkow.
+    if (id.x >= vertexCount)
+    {
+        return;
+    }
+
+    // Pobierz oryginalna pozycje wierzcholka z bufora wejsciowego.
+    float3 originalPos = originalVertices[id.x].position;
+
+    // 1. Znormalizuj pozycje wierzcholka, aby uzyskac punkt na jednostkowej sferze.
+    float3 pointOnUnitSphere = normalize(originalPos);
+
+    // 2. Oblicz wspolrzedne UV na podstawie pozycji na jednostkowej sfery (jak w C#).
+    float u = 0.5f + atan2(pointOnUnitSphere.x, pointOnUnitSphere.z) / (2.0f * 3.14159265f);
+    float v = 0.5f - asin(pointOnUnitSphere.y) / 3.14159265f;
+    
+    // Zapewnij, ze UV sa w zakresie [0, 1].
+    v = clamp(v, 0.0f, 1.0f);
+    u = fmod(u, 1.0f);
+
+    // 3. Odczytaj wysokosc z mapy wysokosci uzywajac wspolrzednych pikseli.
+    // To wymaga przekazania wymiarow tekstury z C#.
+    int2 pixelCoords = int2((1.0 - u) * heightMapWidth, (1.0 - v) * heightMapHeight);
+    //int2 pixelCoords = int2(u * heightMapWidth, v * heightMapHeight);
+    float elevation = heightMap.Load(int3(pixelCoords, 0));
+
+    // Skaluj wysokosc (przesuwamy 0.5, bo zazwyczaj 0.5 to 'bazowa' wysokosc na mapie szarosci).
+    float actualElevation = (elevation - 0.5f) * heightScale;
+
+    // 4. Zdeformuj pozycje wierzcholka.
+    float3 newPosition = pointOnUnitSphere * (sphereRadius + actualElevation) * globalScale;
+
+    // Zapisz zaktualizowany wierzcholek do bufora wyjsciowego.
+    deformedVertices[id.x].position = newPosition;
+}
