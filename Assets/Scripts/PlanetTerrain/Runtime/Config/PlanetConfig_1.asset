@@ -1,0 +1,37 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!114 &11400000
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 0}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: af87343a96475794a8a5761801ef70a0, type: 3}
+  m_Name: PlanetConfig_1
+  m_EditorClassIdentifier: 
+  sphereMaterial: {fileID: -876546973899608171, guid: 76e146c70143b8b478b995bbdfb9cbda, type: 3}
+  sphereRadius: 0
+  chunkMeshResolution: 64
+  virtualTilesPerSide: 16
+  heightMap: {fileID: 2800000, guid: 066f224cd1042d64ab8892a54993e065, type: 3}
+  heightScale: 0.005
+  uniformGlobalScale: 1
+  useGpuDeformation: 0
+  deformComputeShader: {fileID: 7200000, guid: f1fac68e08f6ff941a63e4c59790aeeb, type: 3}
+  maxCreatesPerFrame: 10
+  cacheAllGenerated: 1
+  maxCachedTiles: 512
+  precomputeCulling: 1
+  onDemandCulling: 1
+  minUpdateInterval: 0.05
+  idleUpdateInterval: 0.5
+  posEpsRelative: 0.001
+  angEpsDeg: 0.25
+  fovEpsDeg: 0.2
+  usePriorityScheduling: 1
+  faceWeight: 0.85
+  intraFaceWeight: 0.15
+  useWorldRadius: 0

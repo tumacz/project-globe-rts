@@ -1,8 +1,8 @@
 <!-- UNITY CODE ASSIST INSTRUCTIONS START -->
 - Project name: project-globe-rts
-- Unity version: Unity 6000.1.12f1
+- Unity version: Unity 6000.2.2f1
 - Active game object:
-  - Name: DynamicTerrainManager
-  - Tag: Untagged
+  - Name: Main Camera
+  - Tag: MainCamera
   - Layer: Default
 <!-- UNITY CODE ASSIST INSTRUCTIONS END -->
