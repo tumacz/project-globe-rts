@@ -2,6 +2,7 @@
 #
 # Get latest from https://github.com/github/gitignore/blob/main/Unity.gitignore
 #
+
 .utmp/
 /[Ll]ibrary/
 /[Tt]emp/
@@ -74,5 +75,12 @@ crashlytics-build.properties
 /[Aa]ssets/[Ss]treamingAssets/aa.meta
 /[Aa]ssets/[Ss]treamingAssets/aa/*
 
-# Custom Ignored Files
-**Assets/Textures/_heightGrayScale.png**
+# -------------------------
+# Project-specific ignores
+# -------------------------
+
+# Ignore entire Textures folder (keep placeholders)
+# (repo-relative paths; do NOT use absolute Windows paths)
+ /Assets/Textures/**
+!/Assets/Textures/.gitkeep
+!/Assets/Textures/README.md
